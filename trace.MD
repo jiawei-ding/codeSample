@@ -281,3 +281,369 @@ class LogTree {
 6. **图表和指标：** 在展示中包含关键性能指标，如响应时间、耗时最长的组件等，以帮助用户更快速地发现潜在问题。
 
 具体的展示方式取决于你的应用场景和用户需求。在实现时，可以结合使用前端框架和图表库，利用现有的组件和工具进行展示效果的设计与实现。
+
+```Java
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class A {
+    private int id;
+    private Integer p_id;  // Integer 类型允许为 null
+    private List<A> child;
+
+    public A(int id, Integer p_id) {
+        this.id = id;
+        this.p_id = p_id;
+        this.child = new ArrayList<>();
+    }
+
+    // Getter 和 Setter 方法...
+
+    public static void main(String[] args) {
+        // 假设有一个 List<A>，包含多个 A 对象
+        List<A> aList = new ArrayList<>();
+        // 添加数据到 aList...
+
+        // 将 aList 转化为树形结构
+        List<A> tree = convertToTree(aList);
+
+        // 打印树形结构
+        printTree(tree, 0);
+    }
+
+    // 将平铺的列表转化为树形结构
+    private static List<A> convertToTree(List<A> aList) {
+        Map<Integer, A> idToNodeMap = new HashMap<>();
+
+        // 创建映射
+        for (A a : aList) {
+            idToNodeMap.put(a.getId(), a);
+        }
+
+        // 遍历列表，建立父子关系
+        for (A a : aList) {
+            Integer parentId = a.getP_id();
+            if (parentId != null) {
+                A parent = idToNodeMap.get(parentId);
+                if (parent != null) {
+                    parent.addChild(a);
+                }
+            }
+        }
+
+        // 找出根节点
+        List<A> rootNodes = new ArrayList<>();
+        for (A a : aList) {
+            if (a.getP_id() == null) {
+                rootNodes.add(a);
+            }
+        }
+
+        // 对每个节点的子节点列表进行排序
+        for (A rootNode : rootNodes) {
+            sortChildNodes(rootNode);
+        }
+
+        return rootNodes;
+    }
+
+    // 递归排序每个节点的子节点列表
+    private static void sortChildNodes(A node) {
+        List<A> childNodes = node.getChild();
+        if (childNodes != null && !childNodes.isEmpty()) {
+            Collections.sort(childNodes, (a1, a2) -> Integer.compare(a1.getId(), a2.getId()));
+            for (A childNode : childNodes) {
+                sortChildNodes(childNode);
+            }
+        }
+    }
+
+    // 递归打印树形结构
+    private static void printTree(List<A> tree, int depth) {
+        for (A node : tree) {
+            for (int i = 0; i < depth; i++) {
+                System.out.print("  ");
+            }
+            System.out.println(node.getId());
+            printTree(node.getChild(), depth + 1);
+        }
+    }
+}
+
+```
+
+- 如果你已经知道根节点的 `id`，那么在建立父子关系时就可以直接通过已知的 `id` 找到根节点，而不需要额外的单独遍历一次来寻找根节点。
+
+  ```Java
+  import java.util.ArrayList;
+  import java.util.Collections;
+  import java.util.HashMap;
+  import java.util.List;
+  import java.util.Map;
+  
+  public class A {
+      private int id;
+      private Integer p_id;  // Integer 类型允许为 null
+      private List<A> child;
+  
+      public A(int id, Integer p_id) {
+          this.id = id;
+          this.p_id = p_id;
+          this.child = new ArrayList<>();
+      }
+  
+      // Getter 和 Setter 方法...
+  
+      public static void main(String[] args) {
+          // 假设有一个 List<A>，包含多个 A 对象
+          List<A> aList = new ArrayList<>();
+          // 添加数据到 aList...
+  
+          // 已知根节点的 id
+          int rootId = 1;
+  
+          // 将 aList 转化为树形结构，已知根节点的 id
+          List<A> tree = convertToTree(aList, rootId);
+  
+          // 打印树形结构
+          printTree(tree, 0);
+      }
+  
+      // 将平铺的列表转化为树形结构，已知根节点的 id
+      private static List<A> convertToTree(List<A> aList, int rootId) {
+          Map<Integer, A> idToNodeMap = new HashMap<>();
+  
+          // 创建映射
+          for (A a : aList) {
+              idToNodeMap.put(a.getId(), a);
+          }
+  
+          // 获取根节点
+          A rootNode = idToNodeMap.get(rootId);
+  
+          // 遍历列表，建立父子关系
+          for (A a : aList) {
+              Integer parentId = a.getP_id();
+              if (parentId != null) {
+                  A parent = idToNodeMap.get(parentId);
+                  if (parent != null) {
+                      parent.addChild(a);
+                  }
+              }
+          }
+  
+          // 对每个节点的子节点列表进行排序
+          sortChildNodes(rootNode);
+  
+          return Collections.singletonList(rootNode);
+      }
+  
+      // 递归排序每个节点的子节点列表
+      private static void sortChildNodes(A node) {
+          List<A> childNodes = node.getChild();
+          if (childNodes != null && !childNodes.isEmpty()) {
+              Collections.sort(childNodes, (a1, a2) -> Integer.compare(a1.getId(), a2.getId()));
+              for (A childNode : childNodes) {
+                  sortChildNodes(childNode);
+              }
+          }
+      }
+  
+      // 递归打印树形结构
+      private static void printTree(List<A> tree, int depth) {
+          for (A node : tree) {
+              for (int i = 0; i < depth; i++) {
+                  System.out.print("  ");
+              }
+              System.out.println(node.getId());
+              printTree(node.getChild(), depth + 1);
+          }
+      }
+  }
+  
+  ```
+
+  在这个示例中，我们通过 `rootId` 直接获取到已知的根节点，并以根节点为起点建立父子关系。这样就无需再单独遍历一次来寻找根节点。
+
+  当你不知道根节点的 `rootId` 时，需要进行额外的遍历来寻找根节点。这是因为在建立父子关系时，需要通过 `p_id` 来确定每个节点的父节点。如果不知道根节点的 `rootId`，就无法直接确定哪个节点是根节点。
+
+  在示例代码中，第一个遍历主要是为了构建一个映射表 `idToNodeMap`，将每个节点的 `id` 映射到对应的 `A` 对象。这样，在第二个遍历时，我们可以通过 `p_id` 来找到每个节点的父节点，并建立父子关系。
+
+  如果你能够在程序运行时获取根节点的 `rootId`，那就可以直接在第一次遍历中找到根节点，而不需要额外的一次遍历。
+
+- 上钻
+
+  ```xml
+  <!-- resources/mapper/AMapper.xml -->
+  
+  <mapper namespace="com.example.mapper.AMapper">
+  
+      <select id="getSiblingsAndParent" parameterType="int" resultType="com.example.model.A">
+          SELECT * FROM a_table
+          WHERE p_id = (
+              SELECT p_id FROM a_table WHERE id = #{currentNodeId}
+          )
+          OR id = #{currentNodeId};
+      </select>
+  
+  </mapper>
+  
+  ```
+
+  
+
+- 下全
+
+```sql
+WITH RECURSIVE SubNodes AS (
+    SELECT * FROM a_table WHERE id = :parentId
+    UNION
+    SELECT a_table.* FROM a_table
+    JOIN SubNodes ON a_table.p_id = SubNodes.id
+)
+SELECT * FROM SubNodes;
+
+```
+
+在这个查询中，`:parentId` 是参数，表示当前节点 A 的 `id`。
+
+在 Java 中，使用 MyBatis 进行查询，你需要定义相应的 Mapper 接口和 XML 映射文件。以下是一个示例：
+
+```java
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface AMapper {
+
+    List<A> getSubNodes(@Param("parentId") int parentId);
+}
+
+```
+
+对应的 XML 映射文件：
+
+```java
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getSubNodes" parameterType="int" resultType="com.example.model.A">
+        WITH RECURSIVE SubNodes AS (
+            SELECT * FROM a_table WHERE id = #{parentId}
+            UNION
+            SELECT a_table.* FROM a_table
+            JOIN SubNodes ON a_table.p_id = SubNodes.id
+        )
+        SELECT * FROM SubNodes;
+    </select>
+
+</mapper>
+
+```
+
+在服务层的实现中，你可以调用该 Mapper 接口的方法：
+
+```Java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class AService {
+
+    @Autowired
+    private AMapper aMapper;
+
+    public List<A> getSubNodes(int parentId) {
+        return aMapper.getSubNodes(parentId);
+    }
+}
+
+```
+
+请注意，PostgreSQL 中的 `WITH RECURSIVE` 语法和 MySQL 中的用法基本相同。上述代码示例假设你的数据库表名为 `a_table`，`A` 类对应数据库表的字段，你需要根据实际情况调整这些信息。
+
+- 上全
+
+```xml
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getAncestors" parameterType="int" resultType="com.example.model.A">
+        WITH RECURSIVE Ancestors AS (
+            SELECT * FROM a_table WHERE id = #{currentNodeId}
+            UNION
+            SELECT a_table.* FROM a_table
+            JOIN Ancestors ON a_table.id = Ancestors.p_id
+        )
+        SELECT * FROM Ancestors;
+    </select>
+
+</mapper>
+
+```
+
+```java
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface AMapper {
+
+    List<A> getAncestors(@Param("currentNodeId") int currentNodeId);
+}
+
+```
+
+- sql讲解
+
+ `WITH RECURSIVE` 语法，该语法允许在查询中定义递归的公共表表达式（Common Table Expression，CTE）。这个 CTE 在查询的过程中不断地联接自身，直到满足退出条件。
+
+下面是对 `AMapper.xml` 文件中递归查询的 XML 代码的解释：
+
+```xml
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getAncestors" parameterType="int" resultType="com.example.model.A">
+        <!-- 使用 WITH RECURSIVE 定义递归查询的公共表表达式 Ancestors -->
+        <!-- 
+            Ancestors 包含两部分：
+            1. SELECT * FROM a_table WHERE id = #{currentNodeId}，作为递归查询的起点，选择当前节点
+            2. UNION SELECT a_table.* FROM a_table JOIN Ancestors ON a_table.id = Ancestors.p_id，与 Ancestors 自身进行联接
+            这样就可以一直向上递归查询，直到满足退出条件
+        -->
+        WITH RECURSIVE Ancestors AS (
+            SELECT * FROM a_table WHERE id = #{currentNodeId}
+            UNION
+            SELECT a_table.* FROM a_table
+            JOIN Ancestors ON a_table.id = Ancestors.p_id
+        )
+        SELECT * FROM Ancestors;
+    </select>
+
+</mapper>
+
+```
+
+关键点解释：
+
+- `<select id="getAncestors" ...>`: 这是 MyBatis XML 文件中的一个查询语句，它定义了一个 ID 为 `getAncestors` 的查询。
+- `parameterType="int"`: 指定了查询语句的参数类型，这里是一个整数，表示当前节点的 ID。
+- `resultType="com.example.model.A"`: 指定了查询结果的类型，这里是自定义的 `A` 类型，表示数据库表中的一行数据对应的 Java 对象。
+- `WITH RECURSIVE Ancestors AS ...`: 这是 `WITH RECURSIVE` 语法，定义了递归查询的公共表表达式，名为 `Ancestors`。它包含两部分，第一部分是选择起点，第二部分是与自身进行联接，实现递归。
+- `UNION`: 用于将两个查询结果合并。
+- `SELECT * FROM Ancestors;`: 最终的查询语句，选择了公共表表达式 `Ancestors` 中的所有结果。
+
+这样的设计允许我们通过递归查询获取当前节点的所有上层节点，直到根节点。在 MyBatis 中，我们只需定义好这个查询，然后在对应的 Mapper 接口中调用即可。
