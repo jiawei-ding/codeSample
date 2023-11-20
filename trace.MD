@@ -647,3 +647,69 @@ public interface AMapper {
 - `SELECT * FROM Ancestors;`: 最终的查询语句，选择了公共表表达式 `Ancestors` 中的所有结果。
 
 这样的设计允许我们通过递归查询获取当前节点的所有上层节点，直到根节点。在 MyBatis 中，我们只需定义好这个查询，然后在对应的 Mapper 接口中调用即可。
+
+
+
+- 上钻到根节点
+
+  如果要通过节点 A 的某个子节点向上搜索出其全部父节点和同层节点，包括当前节点，可以考虑以下 SQL 查询语句和 MyBatis 实现。
+
+  首先，SQL 查询语句可以使用以下方式：
+
+```sql
+WITH RECURSIVE SiblingsAndAncestors AS (
+    SELECT * FROM a_table WHERE id = :currentNodeId
+    UNION
+    SELECT a_table.* FROM a_table
+    JOIN SiblingsAndAncestors ON a_table.p_id = SiblingsAndAncestors.p_id
+)
+SELECT * FROM SiblingsAndAncestors;
+```
+
+- 下钻到根节点
+
+```sql
+WITH RECURSIVE SubNodes AS (
+    SELECT * FROM a_table WHERE id = :currentNodeId
+    UNION
+    SELECT a_table.* FROM a_table
+    JOIN SubNodes ON a_table.p_id = SubNodes.id
+)
+SELECT * FROM SubNodes;
+
+```
+
+回答中确实没有对向上递归和向下递归使用不同的 SQL 语句进行详细解释，我为此道歉。向上递归和向下递归虽然在 SQL 中可以使用相同的 `WITH RECURSIVE` 语法，但实际上查询语句中的联接方向是不同的。
+
+对于向上递归，我们是通过连接当前节点的 `p_id` 字段和父节点的 `id` 字段来实现的，而向下递归则是通过连接当前节点的 `id` 字段和子节点的 `p_id` 字段来实现的。这两者虽然语法一样，但在具体使用时需要正确理解。
+
+#### 嵌套查询效率问题
+
+递归查询的效率确实可能较低，尤其是在处理大量数据时。以下是一些可能提高递归查询效率的方法：
+
+1. **适当的索引：** 确保表中适当的字段上有索引，特别是参与递归的字段，例如，向上递归查询时 `p_id` 字段，向下递归查询时 `id` 字段。
+
+2. **限制递归深度：** 在实际应用中，可能不需要无限递归。你可以考虑在递归查询中加入深度限制，避免无谓的深度递归，提高效率。
+
+   例如，在递归查询中添加一个深度限制的条件：
+
+```sql
+WITH RECURSIVE SubNodes AS (
+    SELECT *, 0 AS depth FROM a_table WHERE id = :currentNodeId
+    UNION
+    SELECT a_table.*, depth + 1 FROM a_table
+    JOIN SubNodes ON a_table.p_id = SubNodes.id
+    WHERE depth < 10  -- 限制递归深度为10层
+)
+SELECT * FROM SubNodes;
+
+```
+
+3.**分页处理：** 如果可能，可以考虑对递归查询结果进行分页处理，减小单次查询的负担。
+
+4.**使用连接池：** 使用连接池来管理数据库连接，避免频繁地创建和关闭连接，提高连接的复用率。
+
+**数据库性能优化：** 确保数据库服务器进行了性能调优，例如合理配置了缓存、调整了数据库参数等。
+
+5.**考虑使用其他数据结构：** 如果递归查询的性能仍然是瓶颈，可能需要考虑使用其他数据结构或者算法来存储和处理层级关系，以提高效率。这可能涉及到在应用层面进行更多的处理，但在某些场景下可能是值得的。
+
