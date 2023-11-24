@@ -713,3 +713,187 @@ SELECT * FROM SubNodes;
 
 5.**考虑使用其他数据结构：** 如果递归查询的性能仍然是瓶颈，可能需要考虑使用其他数据结构或者算法来存储和处理层级关系，以提高效率。这可能涉及到在应用层面进行更多的处理，但在某些场景下可能是值得的。
 
+#### 限制递归深度
+
+- 向上
+
+```xml
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getAncestorsWithDepthLimit" parameterType="map" resultType="com.example.model.A">
+        WITH RECURSIVE Ancestors AS (
+            SELECT *, 0 AS depth FROM a_table WHERE id = #{currentNodeId}
+            UNION
+            SELECT a_table.*, depth + 1 FROM a_table
+            JOIN Ancestors ON a_table.id = Ancestors.p_id
+            WHERE depth < #{depthLimit}
+        )
+        SELECT * FROM Ancestors;
+    </select>
+
+</mapper>
+
+```
+
+在 Java 中，对应的 `AMapper` 接口可能如下所示：
+
+```Java
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+@Mapper
+public interface AMapper {
+
+    List<A> getAncestorsWithDepthLimit(@Param("currentNodeId") int currentNodeId, @Param("depthLimit") int depthLimit);
+}
+
+```
+
+```java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class AService {
+
+    @Autowired
+    private AMapper aMapper;
+
+    public List<A> getAncestorsTreeWithDepthLimit(int currentNodeId, int depthLimit) {
+        return aMapper.getAncestorsWithDepthLimit(currentNodeId, depthLimit);
+    }
+}
+
+```
+
+- 向下
+
+```xml
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getAllSubNodesWithDepthLimit" parameterType="map" resultType="com.example.model.A">
+        WITH RECURSIVE SubNodes AS (
+            SELECT *, 0 AS depth FROM a_table WHERE id = #{currentNodeId}
+            UNION
+            SELECT a_table.*, depth + 1 FROM a_table
+            JOIN SubNodes ON a_table.p_id = SubNodes.id
+            WHERE depth < #{depthLimit}
+        )
+        SELECT * FROM SubNodes;
+    </select>
+
+</mapper>
+
+```
+
+```java
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+@Mapper
+public interface AMapper {
+
+    List<A> getAllSubNodesWithDepthLimit(@Param("currentNodeId") int currentNodeId, @Param("depthLimit") int depthLimit);
+}
+
+```
+
+```java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class AService {
+
+    @Autowired
+    private AMapper aMapper;
+
+    public List<A> getAllSubNodesTreeWithDepthLimit(int currentNodeId, int depthLimit) {
+        return aMapper.getAllSubNodesWithDepthLimit(currentNodeId, depthLimit);
+    }
+}
+
+```
+
+- 字段问题
+
+
+当使用 `${fields}` 插入字段列表时，`${fields}` 将会被直接替换为你传入的字段字符串，而不会进行预编译。这样做可能会导致 SQL 注入的风险，因此需要确保传入的字段字符串是可信的，或者在传入字段前进行适当的处理和验证。
+
+以下是一个简单的例子，假设传入的字段列表是 "id, name, description"：
+
+```xml
+<!-- resources/mapper/AMapper.xml -->
+
+<mapper namespace="com.example.mapper.AMapper">
+
+    <select id="getAncestorsWithFieldsAndDepthLimit" parameterType="map" resultType="com.example.model.A">
+        <choose>
+            <when test="fields != null and fields != ''">
+                WITH RECURSIVE Ancestors AS (
+                    SELECT ${fields}, 0 AS depth FROM a_table WHERE id = #{currentNodeId}
+                    UNION
+                    SELECT ${fields}, depth + 1 FROM a_table
+                    JOIN Ancestors ON a_table.id = Ancestors.p_id
+                    WHERE depth < #{depthLimit}
+                )
+                SELECT ${fields} FROM Ancestors;
+            </when>
+            <otherwise>
+                <!-- 默认情况下，查询所有字段 -->
+                WITH RECURSIVE Ancestors AS (
+                    SELECT * , 0 AS depth FROM a_table WHERE id = #{currentNodeId}
+                    UNION
+                    SELECT *, depth + 1 FROM a_table
+                    JOIN Ancestors ON a_table.id = Ancestors.p_id
+                    WHERE depth < #{depthLimit}
+                )
+                SELECT * FROM Ancestors;
+            </otherwise>
+        </choose>
+    </select>
+
+</mapper>
+
+```
+
+
+在使用 `UNION` 进行联接时，`SELECT` 语句中的列名是否需要加上表名，取决于你的数据库中是否存在相同名称的列，以及是否需要明确指定从哪个表中选择这些列。
+
+如果两个表中有相同名称的列，你需要使用表名来明确指定选择的是哪个表中的列，以避免歧义。在这种情况下，你可以修改 `SELECT` 语句，使用表名加点号的方式指定列：
+
+```sql
+SELECT a_table.id, a_table.name, a_table.description, depth + 1
+FROM a_table
+JOIN Ancestors ON a_table.id = Ancestors.p_id
+WHERE depth < #{depthLimit}
+
+```
+
+这样，你就明确地告诉数据库你要选择的是 `Ancestors` 表中的 `depth` 列以及 `a_table` 表中的其他列。
+
+如果两个表中没有相同名称的列，可以直接使用列名而不加表名，因为不会有歧义。在这种情况下，你可以保持原样，不加表名：
+
+```sql
+SELECT *, depth + 1
+FROM a_table
+JOIN Ancestors ON a_table.id = Ancestors.p_id
+WHERE depth < #{depthLimit}
+
+```
+
+这样的语句也是有效的，因为没有相同名称的列，数据库能够明确识别你要选择的是哪个列。
