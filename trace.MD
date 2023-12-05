@@ -897,3 +897,180 @@ WHERE depth < #{depthLimit}
 ```
 
 这样的语句也是有效的，因为没有相同名称的列，数据库能够明确识别你要选择的是哪个列。
+
+#### 递归深度参数大于树的深度
+
+如果 `depthLimit` 是从外部传入的参数，那么递归深度超过实际树的深度是由调用方控制的。在这种情况下，SQL 查询本身无法阻止递归深度超过实际树的深度。如果 `depthLimit` 超过实际深度，递归查询将继续尝试查询，但不会再找到匹配的记录，因为实际树的深度已经结束。
+
+所以，在这种情况下，你可能需要在调用方的代码中进行判断和处理，确保传入的 `depthLimit` 不会超过实际树的深度。这可以通过在代码中获取实际树的深度，然后与传入的 `depthLimit` 进行比较来实现。
+
+以下是一个示例，假设有一个方法用于获取实际树的深度：
+
+```java
+public int getActualTreeDepth(int rootNodeId) {
+    // 实际的获取深度的逻辑
+    // 返回实际树的深度
+    // ...
+}
+```
+
+然后，在调用方的代码中，你可以这样使用：
+
+```java
+int currentNodeId = 123; // 你的当前节点ID
+int depthLimit = 100;    // 传入的深度限制参数
+
+int actualTreeDepth = getActualTreeDepth(currentNodeId);
+
+// 判断深度是否超过实际树的深度
+int effectiveDepthLimit = Math.min(depthLimit, actualTreeDepth);
+
+// 调用数据库查询，传入有效的深度限制
+List<Node> result = nodeMapper.getAncestorsTreeWithDepthLimit(currentNodeId, effectiveDepthLimit);
+```
+
+在这个例子中，使用 `Math.min(depthLimit, actualTreeDepth)` 来获取有效的深度限制，确保不超过实际树的深度。这样，即使调用方传入的 `depthLimit` 较大，也能保证查询不会超过实际树的深度。
+
+```
+
+```
+
+获取实际树的深度可以通过 SQL 递归查询实现。以下是一个示例：
+
+1. **SQL 查询获取树的深度：**
+
+```sql
+WITH RECURSIVE TreeDepth AS (
+    SELECT id, p_id, 1 AS depth FROM your_table WHERE id = #{rootNodeId}
+    UNION
+    SELECT t.id, t.p_id, td.depth + 1 FROM your_table t
+    JOIN TreeDepth td ON t.p_id = td.id
+)
+SELECT MAX(depth) AS tree_depth FROM TreeDepth;
+```
+
+在这个示例中，`your_table` 是你的树形结构的表名，`rootNodeId` 是树的根节点的 ID。这个查询使用了 `RECURSIVE` 关键字，通过递归查询每个节点的深度，然后使用 `MAX(depth)` 获取最大深度，即树的深度。
+
+1. **在 MyBatis Mapper 文件中定义对应的查询方法：**
+
+```xml
+<!-- resources/mapper/YourMapper.xml -->
+
+<mapper namespace="com.example.mapper.YourMapper">
+
+    <select id="getTreeDepth" parameterType="int" resultType="int">
+        WITH RECURSIVE TreeDepth AS (
+            SELECT id, p_id, 1 AS depth FROM your_table WHERE id = #{rootNodeId}
+            UNION
+            SELECT t.id, t.p_id, td.depth + 1 FROM your_table t
+            JOIN TreeDepth td ON t.p_id = td.id
+        )
+        SELECT MAX(depth) AS tree_depth FROM TreeDepth;
+    </select>
+
+</mapper>
+```
+
+1. **在 Java 中调用查询方法获取深度：**
+
+```java
+import org.apache.ibatis.annotations.Param;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class YourService {
+
+    @Autowired
+    private YourMapper yourMapper;
+
+    public int getActualTreeDepth(int rootNodeId) {
+        return yourMapper.getTreeDepth(rootNodeId);
+    }
+}
+```
+
+在这个例子中，`getActualTreeDepth` 方法调用了 MyBatis Mapper 中定义的 `getTreeDepth` 方法，传入根节点的 ID，获取实际树的深度。
+
+确保将表名、字段名等根据你的实际数据库结构进行调整。
+
+- 向上和向下查询
+
+以下是 Java、MyBatis 实现查询当前节点到根节点和最下层叶子节点的递归深度的示例：
+
+1. **查询当前节点到根节点的递归深度：**
+
+```java
+// YourMapper.java
+import org.apache.ibatis.annotations.Param;
+
+public interface YourMapper {
+    int getDepthToRoot(@Param("nodeId") int nodeId);
+}
+xmlCopy code<!-- YourMapper.xml -->
+<mapper namespace="com.example.mapper.YourMapper">
+    <select id="getDepthToRoot" parameterType="int" resultType="int">
+        WITH RECURSIVE TreeDepth AS (
+            SELECT id, p_id, 1 AS depth FROM your_table WHERE id = #{nodeId}
+            UNION
+            SELECT t.id, t.p_id, td.depth + 1 FROM your_table t
+            JOIN TreeDepth td ON t.id = td.p_id
+        )
+        SELECT MAX(depth) AS tree_depth FROM TreeDepth;
+    </select>
+</mapper>
+javaCopy code// YourService.java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class YourService {
+
+    @Autowired
+    private YourMapper yourMapper;
+
+    public int getDepthToRoot(int nodeId) {
+        return yourMapper.getDepthToRoot(nodeId);
+    }
+}
+```
+
+1. **查询当前节点到最下层叶子节点的递归深度：**
+
+```java
+// YourMapper.java
+import org.apache.ibatis.annotations.Param;
+
+public interface YourMapper {
+    int getDepthToLeaf(@Param("nodeId") int nodeId);
+}
+xmlCopy code<!-- YourMapper.xml -->
+<mapper namespace="com.example.mapper.YourMapper">
+    <select id="getDepthToLeaf" parameterType="int" resultType="int">
+        WITH RECURSIVE TreeDepth AS (
+            SELECT id, p_id, 1 AS depth FROM your_table WHERE id = #{nodeId}
+            UNION
+            SELECT t.id, t.p_id, td.depth + 1 FROM your_table t
+            JOIN TreeDepth td ON t.id = td.p_id
+        )
+        SELECT MAX(depth) AS tree_depth FROM TreeDepth;
+    </select>
+</mapper>
+javaCopy code// YourService.java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class YourService {
+
+    @Autowired
+    private YourMapper yourMapper;
+
+    public int getDepthToLeaf(int nodeId) {
+        return yourMapper.getDepthToLeaf(nodeId);
+    }
+}
+```
+
+这两个示例中，通过 MyBatis 使用递归查询计算深度。确保根据你的实际数据库结构调整表名、字段名等。
+
