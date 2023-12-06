@@ -1074,3 +1074,82 @@ public class YourService {
 
 这两个示例中，通过 MyBatis 使用递归查询计算深度。确保根据你的实际数据库结构调整表名、字段名等。
 
+#### 限制嵌套深度
+
+- `UNION`的第一部分选择了指定节点，条件是`id = #{nodeId}`，并给定深度为1。
+- `UNION`的第二部分通过递归地在`your_table`和`Descendants` CTE（公共表达式）之间进行连接（`JOIN Descendants d ON t.p_id = d.id`）。此外，它还包含一个条件 `WHERE d.depth < #{depthLimit}` 以限制递归深度。
+
+最后，主查询 `SELECT * FROM Descendants` 选择了CTE中的所有行，实际上检索了所有子孙节点，直到指定的深度。
+
+确保将 `your_table`、`id`、`p_id` 等占位符替换为实际的表名和列名。
+
+以下是在MyBatis中使用它的示例：
+
+```xml
+<!-- YourMapper.xml -->
+<mapper namespace="com.example.mapper.YourMapper">
+
+    <select id="getDescendantsWithDepthLimit" parameterType="map" resultType="com.example.model.Node">
+        WITH RECURSIVE Descendants AS (
+            SELECT * FROM your_table WHERE id = #{nodeId}
+            UNION
+            SELECT t.* FROM your_table t
+            JOIN Descendants d ON t.p_id = d.id
+            WHERE d.depth < #{depthLimit}
+        )
+        SELECT * FROM Descendants;
+    </select>
+
+</mapper>
+```
+
+在MyBatis的XML文件中，你可以定义一个参数映射，将 `nodeId` 和 `depthLimit` 作为参数传递给查询。根据你的 `Node` 类结构，相应地调整 `resultType`。
+
+向下：
+
+```xml
+<!-- YourMapper.xml -->
+<mapper namespace="com.example.mapper.YourMapper">
+
+    <select id="getAncestorsWithDepthLimit" parameterType="map" resultType="com.example.model.Node">
+        WITH RECURSIVE Ancestors AS (
+            SELECT * FROM your_table WHERE id = #{nodeId}
+            UNION
+            SELECT t.* FROM your_table t
+            JOIN Ancestors a ON t.id = a.p_id
+            WHERE a.depth < #{depthLimit}
+        )
+        SELECT * FROM Ancestors;
+    </select>
+
+</mapper>
+```
+
+在这个SQL语句中：
+
+```xml
+<!-- YourMapper.xml -->
+<mapper namespace="com.example.mapper.YourMapper">
+
+    <select id="getAncestorsWithDepthLimit" parameterType="map" resultType="com.example.model.Node">
+        WITH RECURSIVE Ancestors AS (
+            SELECT * FROM your_table WHERE id = #{nodeId}
+            UNION
+            SELECT t.* FROM your_table t
+            JOIN Ancestors a ON t.id = a.p_id
+            WHERE a.depth < #{depthLimit}
+        )
+        SELECT * FROM Ancestors;
+    </select>
+
+</mapper>
+
+```
+
+- `WITH RECURSIVE` 子句创建了一个名为 `Ancestors` 的递归公共表达式（CTE）。
+- 第一部分选择了指定节点，条件是 `id = #{nodeId}`，并给定深度为1。
+- 第二部分通过递归地在 `your_table` 和 `Ancestors` CTE 之间进行连接（`JOIN Ancestors a ON t.id = a.p_id`）。此外，它还包含了一个条件 `WHERE a.depth < #{depthLimit}` 以限制递归深度。
+
+最后，主查询 `SELECT * FROM Ancestors` 选择了CTE中的所有行，实际上检索了所有同层和上层节点，直到指定的深度。
+
+确保将 `your_table`、`id`、`p_id` 等占位符替换为实际的表名和列名。
