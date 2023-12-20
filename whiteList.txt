@@ -1,0 +1,285 @@
+#### 白名单校验
+
+白名单校验在 Java 开发中常用于安全领域，用于验证输入或访问的数据是否在一个预定义的白名单中。这可以有效地防止一些安全威胁，如SQL注入、XSS攻击等。以下是关于白名单校验的一些基本介绍：
+
+1. **概念和目的：**
+
+- **白名单（Whitelist）：** 白名单是一份允许的列表，包含了被认为是安全和合法的元素。在白名单校验中，我们验证输入或访问的数据是否在白名单中，如果在白名单中，则被视为合法，否则被认为是非法的。
+- **目的：** 主要目的是防止恶意用户提交恶意数据，确保应用程序只处理预期的、合法的数据。
+
+2. **应用场景：**
+
+- **用户输入验证：** 验证用户输入的数据是否符合预期，并排除不合法的输入。
+- **URL和参数验证：** 验证从外部接收到的URL和参数，确保它们符合期望的格式和内容。
+- **SQL注入防范：** 在数据库操作中，对用户输入的参数进行白名单验证，防止SQL注入攻击。
+- **XSS攻击防范：** 在Web应用中，对用户输入的文本进行白名单验证，防止XSS攻击。
+
+3. **实现方式：**
+
+- **正则表达式：** 使用正则表达式对输入数据进行匹配，确保其符合指定的模式。
+- **列表或集合：** 创建一个包含合法值的列表或集合，通过判断输入是否在列表中来进行验证。
+- **安全框架：** 一些Web框架和安全框架提供了内置的白名单验证机制，可以直接使用这些框架提供的功能来进行安全校验。
+
+4. **示例：**
+
+4.1 **白名单验证函数：**
+
+```
+javaCopy codepublic class WhiteListValidator {
+
+    private static final Set<String> ALLOWED_VALUES = new HashSet<>(Arrays.asList("value1", "value2", "value3"));
+
+    public static boolean isValid(String input) {
+        return ALLOWED_VALUES.contains(input);
+    }
+
+    public static void main(String[] args) {
+        String userInput = "value2";
+        if (isValid(userInput)) {
+            System.out.println("Input is valid.");
+        } else {
+            System.out.println("Input is not valid.");
+        }
+    }
+}
+```
+
+4.2 **正则表达式验证：**
+
+```
+import java.util.regex.Pattern;
+
+public class WhiteListValidator {
+
+    private static final String ALLOWED_PATTERN = "^[a-zA-Z0-9]*$"; // 允许字母和数字
+
+    public static boolean isValid(String input) {
+        return Pattern.matches(ALLOWED_PATTERN, input);
+    }
+
+    public static void main(String[] args) {
+        String userInput = "user123";
+        if (isValid(userInput)) {
+            System.out.println("Input is valid.");
+        } else {
+            System.out.println("Input is not valid.");
+        }
+    }
+}
+```
+
+5. **注意事项：**
+
+- **维护白名单：** 白名单需要及时维护，确保它能够反映当前业务逻辑的合法数据。
+- **不仅仅依赖前端验证：** 在前端进行白名单验证是必要的，但后端也必须对输入数据进行验证，因为前端验证可以被绕过。
+- **不同类型数据的验证：** 不同类型的数据可能需要不同的验证方式，比如URL参数、请求头、表单字段等。
+- **谨慎使用黑名单：** 黑名单验证容易遗漏不合法输入，通常情况下更推荐使用白名单验证。
+
+#### 多字段排序
+
+在实现多字段排序的情境下，需要在后端动态构建 SQL 语句，并在 MyBatis 中使用动态 SQL。以下是一个简单的示例，演示如何处理前端动态传递的多字段排序信息：
+
+Java 后端（Spring Boot + MyBatis）：
+
+1. Java 实体类：
+
+```
+public class SortField {
+    private String fieldName;
+    private boolean isAsc;
+
+    // 省略 getter 和 setter 方法
+}
+```
+
+2. 控制器 Controller：
+
+```
+@RestController
+@RequestMapping("/your-endpoint")
+public class YourController {
+
+    @Autowired
+    private YourService yourService;
+
+    @PostMapping("/your-action")
+    public List<YourEntity> getData(@RequestBody List<SortField> sortFields) {
+        return yourService.getData(sortFields);
+    }
+}
+```
+
+3. Service 层：
+
+```
+@Service
+public class YourService {
+
+    @Autowired
+    private YourMapper yourMapper;
+
+    public List<YourEntity> getData(List<SortField> sortFields) {
+        // 构建动态 SQL 排序语句
+        String orderByClause = buildOrderByClause(sortFields);
+
+        // 调用 MyBatis Mapper 执行动态 SQL 查询
+        return yourMapper.getData(orderByClause);
+    }
+
+    private String buildOrderByClause(List<SortField> sortFields) {
+        if (sortFields == null || sortFields.isEmpty()) {
+            return ""; // 无排序字段
+        }
+
+        StringBuilder orderByClause = new StringBuilder("ORDER BY ");
+        for (int i = 0; i < sortFields.size(); i++) {
+            SortField sortField = sortFields.get(i);
+            orderByClause.append(sortField.getFieldName()).append(" ")
+                         .append(sortField.isAsc() ? "ASC" : "DESC");
+
+            if (i < sortFields.size() - 1) {
+                orderByClause.append(", ");
+            }
+        }
+
+        return orderByClause.toString();
+    }
+}
+```
+
+MyBatis Mapper 接口和 XML 映射文件：
+
+```
+@Mapper
+public interface YourMapper {
+
+    @Select("SELECT * FROM your_table ${orderByClause}")
+    List<YourEntity> getData(@Param("orderByClause") String orderByClause);
+}
+xmlCopy code<!-- YourMapper.xml -->
+<mapper namespace="your.package.path.YourMapper">
+
+    <!-- 这里的方法可以为空，MyBatis 会动态替换 SQL -->
+    <select id="getData" resultType="your.package.path.YourEntity">
+        SELECT * FROM your_table
+        ${orderByClause}
+    </select>
+
+</mapper>
+```
+
+上述代码中，前端通过 JSON 对象传递多字段排序信息给后端。在后端的 Service 层，通过构建动态 SQL 排序语句，将其传递给 MyBatis Mapper 执行查询。
+
+需要注意的是，动态构建 SQL 语句时要确保安全，以防止 SQL 注入攻击。在实际项目中，你可能需要更复杂的逻辑来处理不同类型的排序字段，以及对字段的合法性进行校验。
+
+#### dao层完成拼接
+
+在 MyBatis 的 XML 映射文件中，你可以使用动态 SQL 来完成排序字段的拼接。MyBatis 提供了 `<foreach>` 标签来遍历集合，结合 `<choose>`、`<when>` 和 `<otherwise>` 标签可以实现比较复杂的动态 SQL 构建。
+
+以下是一个在 MyBatis XML 中实现多字段排序的示例：
+
+```
+<!-- YourMapper.xml -->
+<mapper namespace="your.package.path.YourMapper">
+
+    <select id="getData" resultType="your.package.path.YourEntity">
+        SELECT * FROM your_table
+        <if test="sortFields != null and sortFields.size() > 0">
+            ORDER BY
+            <foreach collection="sortFields" item="sortField" separator=",">
+                <choose>
+                    <when test="sortField.isAsc">
+                        ${sortField.fieldName} ASC
+                    </when>
+                    <otherwise>
+                        ${sortField.fieldName} DESC
+                    </otherwise>
+                </choose>
+            </foreach>
+        </if>
+    </select>
+
+</mapper>
+```
+
+在这个例子中，我们使用了 `<foreach>` 标签来遍历 `sortFields` 集合，通过 `<choose>`、`<when>` 和 `<otherwise>` 标签根据每个排序字段的升序或降序属性来决定拼接的 SQL 片段。
+
+请注意，`${}` 表达式中的属性名需要与 `SortField` 类中的属性名一致。确保在传递数据到 MyBatis 时，`SortField` 对象中的属性名和数据中的属性名匹配。
+
+在调用 MyBatis Mapper 方法时，需要传递一个包含 `sortFields` 对象的参数，如下所示：
+
+```
+public interface YourMapper {
+
+    List<YourEntity> getData(@Param("sortFields") List<SortField> sortFields);
+}
+```
+
+在这个例子中，`sortFields` 参数名要与 XML 中的 `${sortField.fieldName}` 保持一致。
+
+通过这种方式，你可以在 MyBatis XML 中完成多字段排序的 SQL 拼接，而不需要在 Service 层手动构建 SQL 语句。
+
+#### 防止注入
+
+在 MyBatis XML 中进行排序字段的拼接时，对于排序字段的校验是非常重要的，以防止 SQL 注入等安全风险。以下是一些建议：
+
+1. **使用预编译语句（Prepared Statements）：**
+
+尽量使用预编译语句而不是直接拼接字符串，以防止 SQL 注入。MyBatis 的动态 SQL 已经帮助我们处理了这个问题，因为它会使用预编译语句来构建 SQL。
+
+2. **校验字段名：**
+
+确保排序字段名是合法的，不包含特殊字符。你可以在传递排序字段之前，对字段名进行严格的校验，只允许包含字母、数字等合法字符。
+
+3. **白名单验证：**
+
+建立一个白名单，只允许一定范围内的字段名进行排序。在 MyBatis XML 中，你可以使用 `<choose>` 和 `<when>` 标签来检查字段名是否在白名单中。
+
+示例：
+
+```
+<choose>
+    <when test="sortField.fieldName == 'column1' or sortField.fieldName == 'column2'">
+        <!-- 合法的字段名 -->
+        ${sortField.fieldName} ${sortField.isAsc ? 'ASC' : 'DESC'}
+    </when>
+    <otherwise>
+        <!-- 非法的字段名，可以抛出异常或者采取其他处理方式 -->
+        'Invalid field name: ' + #{sortField.fieldName}
+    </otherwise>
+</choose>
+```
+
+4. **防止 SQL 注入：**
+
+确保排序字段的值是预期的类型。在 `SortField` 对象中，可以使用枚举类型表示排序方向，这样可以确保排序方向只能是预定义的值（ASC 或 DESC）。
+
+```
+public enum SortDirection {
+    ASC, DESC
+}
+
+public class SortField {
+    private String fieldName;
+    private SortDirection sortDirection;
+
+    // 省略 getter 和 setter 方法
+}
+```
+
+在 MyBatis XML 中：
+
+```
+<choose>
+    <when test="sortField.sortDirection == 'ASC' or sortField.sortDirection == 'DESC'">
+        <!-- 合法的排序方向 -->
+        ${sortField.fieldName} ${sortField.sortDirection}
+    </when>
+    <otherwise>
+        <!-- 非法的排序方向，可以抛出异常或者采取其他处理方式 -->
+        'Invalid sort direction: ' + #{sortField.sortDirection}
+    </otherwise>
+</choose>
+```
+
+通过上述措施，你可以在 MyBatis XML 中更安全地进行动态排序字段的拼接，避免潜在的注入风险。
