@@ -283,3 +283,74 @@ public class SortField {
 ```
 
 通过上述措施，你可以在 MyBatis XML 中更安全地进行动态排序字段的拼接，避免潜在的注入风险。
+
+#### 白名单校验
+
+将 `ALLOWED_FIELDS` 单独放在一个常量工具类是一个很好的做法，这样可以提高代码的可维护性和可扩展性。在实际开发中，维护白名单可能会是一个公共的需求，因此将其放在一个工具类中更为合适。
+
+1. 创建常量工具类：
+
+```java
+// FieldWhiteListUtils.java
+public class FieldWhiteListUtils {
+
+    public static final Set<String> ALLOWED_FIELDS = new HashSet<>(Arrays.asList("column1", "column2", "column3"));
+
+    // 可以在此类中添加其他与白名单相关的方法
+}
+```
+
+2. 在 Service 层使用常量：
+
+```java
+@Service
+public class YourService {
+
+    @Autowired
+    private YourMapper yourMapper;
+
+    public List<YourEntity> getData(List<SortField> sortFields) {
+        // 校验字段是否在白名单中
+        validateFields(sortFields);
+
+        // 构建动态 SQL 排序语句
+        String orderByClause = buildOrderByClause(sortFields);
+
+        // 调用 MyBatis Mapper 执行动态 SQL 查询
+        return yourMapper.getData(orderByClause);
+    }
+
+    private void validateFields(List<SortField> sortFields) {
+        for (SortField sortField : sortFields) {
+            if (!FieldWhiteListUtils.ALLOWED_FIELDS.contains(sortField.getFieldName())) {
+                throw new IllegalArgumentException("Invalid field name: " + sortField.getFieldName());
+            }
+        }
+    }
+
+    private String buildOrderByClause(List<SortField> sortFields) {
+        if (sortFields == null || sortFields.isEmpty()) {
+            return ""; // 无排序字段
+        }
+
+        StringBuilder orderByClause = new StringBuilder();
+        for (int i = 0; i < sortFields.size(); i++) {
+            SortField sortField = sortFields.get(i);
+            orderByClause.append(sortField.getFieldName()).append(" ")
+                         .append(sortField.isAsc() ? "ASC" : "DESC");
+
+            if (i < sortFields.size() - 1) {
+                orderByClause.append(", ");
+            }
+        }
+
+        return orderByClause.toString();
+    }
+}
+```
+
+这样做的好处包括：
+
+- **可维护性：** 将白名单集中在一个工具类中，使得维护白名单更加方便。如果有变更，只需要在工具类中进行修改而不影响 Service 层的代码。
+- **可扩展性：** 如果将来有其他需要与白名单相关的功能，可以在工具类中添加新的方法，而不会影响到 Service 层的逻辑。
+- **代码复用：** 如果有其他类或模块需要使用相同的白名单，可以直接引用工具类，提高了代码的复用性。
