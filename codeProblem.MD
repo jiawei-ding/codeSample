@@ -43,6 +43,10 @@ column2 = IF(column2 IS NULL OR column2 = '', value_column2, column2),
 
 这里使用了 PostgreSQL 的 `ON CONFLICT` 语法，当主键冲突时执行更新操作，`COALESCE` 用于判断字段是否为 `NULL`，如果为 `NULL` 则使用新值进行更新。
 
+
+
+
+
 2.2 mysql与postresql比较
 PostgreSQL 和 MySQL 都是开源的关系型数据库管理系统（RDBMS），它们在很多方面都有相似之处，但也存在一些重要的区别。以下是 PostgreSQL 和 MySQL 的比较：
 
@@ -72,6 +76,10 @@ PostgreSQL 和 MySQL 都是开源的关系型数据库管理系统（RDBMS），
    - MySQL 由 Oracle 公司维护，而 PostgreSQL 是一个由社区支持的项目。
 
 在选择 PostgreSQL 还是 MySQL 时，应该根据具体的项目需求、性能要求、数据复杂度和团队经验等因素进行权衡。
+
+
+
+
 
 2.3 索引实现原理
 
@@ -119,3 +127,93 @@ PostgreSQL 和 MySQL 都是开源的关系型数据库管理系统（RDBMS），
    - 使用数据库性能监控工具，监控索引的使用情况。根据查询执行计划和性能统计信息，优化和调整索引策略。
 10. **使用索引提示：**
     - 一些数据库允许使用索引提示（index hints），手动指定查询使用的索引。在某些情况下，手动优化可能比自动优化更有效。
+
+
+
+2.5只更新插入数据的非空字段—sql语句实现
+
+在 MySQL 数据库中，你可以使用 `INSERT ... ON DUPLICATE KEY UPDATE` 语法来实现在插入数据时判断数据是否重复，如果重复则将当前插入数据的非空字段对原数据进行更新。以下是对应的 MyBatis 实现：
+
+首先，创建一个对应于表 A 的数据对象，例如 `AData`：
+
+```java
+public class AData {
+    private String A_1;
+    private String A_2;
+    private String column1;
+    private String column2;
+    // 其他字段省略
+
+    // 构造方法、getter 和 setter 方法
+}
+```
+
+然后，在 MyBatis 的 Mapper 接口中定义相应的方法：
+
+```java
+public interface AMapper {
+    void insertOrUpdateData(AData data);
+}
+```
+
+接下来，在 MyBatis 的 XML Mapper 文件中编写 SQL 语句，使用 `INSERT ... ON DUPLICATE KEY UPDATE`：
+
+```xml
+<!-- AMapper.xml 文件中的 SQL 语句 -->
+<insert id="insertOrUpdateData" parameterType="AData">
+    INSERT INTO A (A_1, A_2, column1, column2, ...)
+    VALUES (#{A_1}, #{A_2}, #{column1}, #{column2}, ...)
+    ON DUPLICATE KEY UPDATE
+    column1 = COALESCE(VALUES(column1), column1),
+    column2 = COALESCE(VALUES(column2), column2),
+    ...;
+</insert>
+```
+
+这里的 `VALUES(column1)` 和 `VALUES(column2)` 表示插入语句中对应列的值，`COALESCE` 函数用于判断是否为 `NULL`，如果为 `NULL` 则使用新值进行更新。
+
+在数据库中，需要为表 A 创建一个唯一索引，以确保主键冲突时可以执行更新操作。以下是创建唯一索引的 SQL 语句：
+
+```sql
+-- 创建唯一索引
+CREATE UNIQUE INDEX idx_a_unique ON A (A_1, A_2);
+```
+
+这里的 `idx_a_unique` 是索引的名称，`A_1` 和 `A_2` 是索引的列名，确保这两列组合起来是唯一的。请确保替换实际的表名、字段名和数据类型。
+
+
+
+2.6只更新插入数据的非空字段—mybatis实现
+
+以下是相应的 MyBatis XML Mapper 实现：
+
+```xml
+<!-- AMapper.xml 文件中的 SQL 语句 -->
+<insert id="insertOrUpdateData" parameterType="AData">
+    INSERT INTO A (A_1, A_2, column1, column2, ...)
+    VALUES (#{A_1}, #{A_2}, #{column1}, #{column2}, ...)
+    ON DUPLICATE KEY UPDATE
+    column1 = CASE WHEN VALUES(column1) IS NOT NULL THEN VALUES(column1) ELSE column1 END,
+    column2 = CASE WHEN VALUES(column2) IS NOT NULL THEN VALUES(column2) ELSE column2 END,
+    ...;
+</insert>
+```
+
+在这个实现中，使用了 `CASE WHEN` 语句来判断插入值是否为 `NULL`，如果不为 `NULL` 则使用插入值，否则使用原始值。这与使用 `COALESCE` 的效果是相同的。
+
+注意，在 MySQL 中，`VALUES(column)` 语法用于获取插入语句中对应列的值，而 `ON DUPLICATE KEY UPDATE` 则用于在发生主键冲突时执行更新操作。
+
+这个 SQL 语句会在插入数据时判断是否有主键冲突，如果有冲突，则执行更新操作，将当前插入数据的非空字段对原数据进行更新。
+
+
+
+2.7CASE WHEN和COALESCE的效率比较
+
+
+在 MySQL 中，`CASE WHEN` 和 `COALESCE` 的效率在实际使用中可能会有一些微小的差异，但通常情况下这两种方式的性能差异是较小的。
+
+在一般的情况下，MySQL 查询优化器会尽力将查询计划优化为最有效的形式。对于简单的 `CASE WHEN` 和 `COALESCE` 表达式，优化器通常能够生成相似的执行计划，因此性能的差异可能不太明显。
+
+选择使用 `CASE WHEN` 还是 `COALESCE`，可以根据个人偏好、代码可读性以及特定查询的性能要求来决定。两者的语法和语义略有不同，但在大多数情况下，差异不太明显。
+
+在批插入的情况下，性能的差异可能会受到批量插入的行数、表结构、索引等多方面因素的影响。在实际应用中，你可以进行一些基准测试，以了解在你的具体情况下，使用哪种表达式更为适合。
