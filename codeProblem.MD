@@ -1,10 +1,10 @@
-### coding问题
+## coding问题
 
 - 对编程过程中碰到的有趣问题进行总结
 
-#### 1.Java相关
+### 1.Java相关
 
-#### 2.数据库相关
+### 2.数据库相关
 
 2.1如何针对数据库中的重复数据实现update操作，并且只update当前非空属性
 
@@ -217,3 +217,69 @@ CREATE UNIQUE INDEX idx_a_unique ON A (A_1, A_2);
 选择使用 `CASE WHEN` 还是 `COALESCE`，可以根据个人偏好、代码可读性以及特定查询的性能要求来决定。两者的语法和语义略有不同，但在大多数情况下，差异不太明显。
 
 在批插入的情况下，性能的差异可能会受到批量插入的行数、表结构、索引等多方面因素的影响。在实际应用中，你可以进行一些基准测试，以了解在你的具体情况下，使用哪种表达式更为适合。
+
+#### 2.8 分页查询
+
+分页查询的实现方式可以分为两种主要的策略：基于游标或基于偏移量（Offset）。这两种策略的实现原理不同。
+
+1. **基于游标的分页查询：**
+   - **原理：** 这种方式在数据库中使用游标（Cursor）来逐步获取一页的数据。数据库在执行查询时，只会获取满足条件的一页数据，并在内部使用游标记录当前位置，下一次查询时会继续从当前位置获取下一页的数据。
+   - **优点：** 相对于基于偏移量的方式，在处理大数据集时更为高效，因为它不需要跳过大量的记录。
+   - **适用场景：** 适用于大数据集的分页查询，可以避免性能问题。
+2. **基于偏移量的分页查询：**
+   - **原理：** 这种方式通过使用 `LIMIT` 和 `OFFSET`（或 `FETCH`）语法，从整个结果集中获取指定偏移量和数量的数据。数据库会检索满足条件的所有数据，然后在结果集中截取出一页的数据。
+   - **缺点：** 对于大数据集，偏移量较大时可能导致性能问题，因为数据库需要跳过大量的记录。
+   - **适用场景：** 适用于小数据集或者不需要处理大数据集性能问题的情况。
+
+在 MyBatis 中，你可以选择使用上述两种方式之一，具体取决于你的数据量和性能需求。通常情况下，对于小数据量的分页查询，基于偏移量的方式可能足够高效。对于大数据集，基于游标的方式更为推荐。
+
+
+在 PostgreSQL 中，可以使用 `OFFSET` 和 `LIMIT` 结合 `ORDER BY` 实现分页查询，也可以使用 `ROW_NUMBER()` 来实现游标分页。以下是在 MyBatis 中实现这两种方式的示例：
+
+1. 使用 `OFFSET` 和 `LIMIT` 实现分页查询：
+
+```xml
+<!-- YourMapper.xml 文件中的 SQL 语句 -->
+<select id="selectDataWithOffsetLimit" resultType="YourResultType" parameterType="map">
+    SELECT your_columns
+    FROM your_table
+    WHERE your_conditions
+    ORDER BY your_order_column
+    LIMIT #{pageSize} OFFSET #{start};
+</select>
+```
+
+在 Java 代码中：
+
+```java 
+public interface YourMapper {
+    List<YourResultType> selectDataWithOffsetLimit(@Param("start") int start, @Param("pageSize") int pageSize);
+}
+```
+
+2. 使用 `ROW_NUMBER()` 实现游标分页：
+
+```xml
+<!-- YourMapper.xml 文件中的 SQL 语句 -->
+<select id="selectDataWithRowNumber" resultType="YourResultType" parameterType="map">
+    SELECT *
+    FROM (
+        SELECT your_columns, ROW_NUMBER() OVER (ORDER BY your_order_column) AS row_num
+        FROM your_table
+        WHERE your_conditions
+    ) AS subquery
+    WHERE row_num BETWEEN #{start} AND #{start + pageSize - 1};
+</select>
+```
+
+在 Java 代码中：
+
+```Java
+public interface YourMapper {
+    List<YourResultType> selectDataWithRowNumber(@Param("start") int start, @Param("pageSize") int pageSize);
+}
+```
+
+在这两种情况下，确保将 `your_table` 替换为实际的表名，`your_columns` 替换为要查询的列，`your_conditions` 替换为查询条件，`your_order_column` 替换为排序的列名。
+
+在调用这些方法时，需要传递 `start` 和 `pageSize` 参数。选择合适的方式取决于你的需求和性能考虑。
