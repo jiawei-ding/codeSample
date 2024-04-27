@@ -89,3 +89,74 @@ print("Query result:", result)
 在这个示例中，我们使用 `find_one()` 方法来执行一个简单的查询操作，它将返回集合中的第一个文档。如果连接成功并且数据库中存在数据，`result` 变量将会包含查询结果。你可以根据需要修改查询条件或使用其他查询方法来执行更复杂的查询操作。
 
 在实际使用时，你可以根据需要编写自己的查询逻辑来验证连接是否成功，并进一步测试 MongoDB 数据库的功能和性能。
+
+
+
+#### 方案2
+
+下面是一个简单的 Python 示例，演示了如何使用 PyMongo 来实现对 MongoDB 的写锁操作，并设置锁定时间为 30 分钟：
+
+```python
+from pymongo import MongoClient
+import time
+
+# MongoDB 连接信息
+mongo_host = 'mongodb://localhost:27017'
+mongo_username = 'your_username'
+mongo_password = 'your_password'
+mongo_database = 'your_database'
+mongo_collection = 'your_collection'
+
+# 连接 MongoDB
+client = MongoClient(mongo_host, username=mongo_username, password=mongo_password)
+db = client[mongo_database]
+collection = db[mongo_collection]
+
+# 加锁函数
+def acquire_lock():
+    lock_acquired = False
+    start_time = time.time()
+    while not lock_acquired:
+        try:
+            # 开启事务
+            with client.start_session() as session:
+                session.start_transaction()
+                # 尝试对集合加写锁
+                db.command({'update': 'your_collection', 'updates': [{'q': {}, 'u': {'$set': {'lock': True}}, 'multi': False}]}, session=session)
+                # 提交事务
+                session.commit_transaction()
+                print("Lock acquired successfully")
+                lock_acquired = True
+        except Exception as e:
+            print(f"Failed to acquire lock: {str(e)}")
+            if time.time() - start_time >= 30 * 60:
+                print("Lock acquisition timeout")
+                break
+            time.sleep(1)
+
+# 释放锁函数
+def release_lock():
+    try:
+        # 开启事务
+        with client.start_session() as session:
+            session.start_transaction()
+            # 尝试释放锁
+            db.command({'update': 'your_collection', 'updates': [{'q': {'lock': True}, 'u': {'$set': {'lock': False}}, 'multi': False}]}, session=session)
+            # 提交事务
+            session.commit_transaction()
+            print("Lock released successfully")
+    except Exception as e:
+        print(f"Failed to release lock: {str(e)}")
+
+try:
+    acquire_lock()
+    # 在锁定期间执行其他操作
+    # ...
+finally:
+    release_lock()
+
+```
+
+在这个示例中，`acquire_lock()` 函数用于获取写锁，`release_lock()` 函数用于释放锁。在 `acquire_lock()` 中，我们不断尝试获取锁，直到成功获取或者超过锁定时间为止。在 `release_lock()` 中，我们尝试释放锁。整个操作被包裹在 `try-finally` 块中，确保无论是否发生异常，都能最终释放锁。
+
+请注意替换示例中的 `'your_username'`、`'your_password'`、`'your_database'` 和 `'your_collection'` 为你实际的 MongoDB 连接信息和集合信息。此外，示例中的锁定时间为 30 分钟，你可以根据需要调整。
